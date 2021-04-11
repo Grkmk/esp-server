@@ -10,13 +10,13 @@ import (
 
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
+	db "github.com/grkmk/esp-server/database"
 	"github.com/hashicorp/go-hclog"
 	"github.com/joho/godotenv"
 )
 
 func main() {
 	logger := hclog.New(&hclog.LoggerOptions{
-		Name:  "server",
 		Color: hclog.AutoColor,
 		Level: hclog.DefaultLevel,
 	})
@@ -28,9 +28,28 @@ func main() {
 	}
 
 	portAddr := os.Getenv("PORT_ADDR")
+	httpServer := initHttpServer(logger, portAddr)
+	dbInstance := db.InitDB(&db.DBSettings{
+		User:     os.Getenv("POSTGRES_USER"),
+		Password: os.Getenv("POSTGRES_PASSWORD"),
+		Host:     os.Getenv("POSTGRES_CONTAINER"),
+		DBName:   os.Getenv("POSTGRES_DB"),
+		Port:     os.Getenv("POSTGRES_PORT"),
+	}, logger)
 
+	trapShutdownSig(logger)
+	shutdownHttpServer(httpServer)
+	dbInstance.Close()
+}
+
+func initHttpServer(logger hclog.Logger, portAddr string) *http.Server {
 	serveMux := mux.NewRouter()
+
+	getRouter := serveMux.Methods(http.MethodGet).Subrouter()
+	getRouter.HandleFunc("/", func(rw http.ResponseWriter, r *http.Request) { rw.Write([]byte("hello\n")) })
+
 	corsHandler := handlers.CORS(handlers.AllowedOrigins([]string{"localhost:3000"}))
+
 	httpServer := &http.Server{
 		Addr:         portAddr,
 		Handler:      corsHandler(serveMux),
@@ -52,19 +71,26 @@ func main() {
 		if err != nil {
 			logger.Error("Error starting http server", "error", err)
 			os.Exit(1)
+			return
 		}
+
+		http.ListenAndServe(portAddr, serveMux)
 	}()
 
+	return httpServer
+}
+
+func trapShutdownSig(logger hclog.Logger) {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt)
 	signal.Notify(sigChan, syscall.SIGTERM)
 
 	<-sigChan
 	logger.Info("Received terminate, gracefully shutting down")
+}
 
+func shutdownHttpServer(httpServer *http.Server) {
 	timeoutCtx, cancelTimeout := context.WithTimeout(context.Background(), 30*time.Second)
 	httpServer.Shutdown(timeoutCtx)
 	defer cancelTimeout()
-
-	http.ListenAndServe(portAddr, serveMux)
 }
