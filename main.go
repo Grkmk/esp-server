@@ -29,10 +29,18 @@ func main() {
 
 	portAddr := os.Getenv("PORT_ADDR")
 	httpServer := initHttpServer(logger, portAddr)
+
+	var hostAddr string
+	if os.Getenv("ENV") == "dev" {
+		hostAddr = "0.0.0.0" // docker container ip
+	} else {
+		hostAddr = os.Getenv("POSTGRES_CONTAINER")
+	}
+
 	dbInstance := db.InitDB(&db.DBSettings{
 		User:     os.Getenv("POSTGRES_USER"),
 		Password: os.Getenv("POSTGRES_PASSWORD"),
-		Host:     os.Getenv("POSTGRES_CONTAINER"),
+		Host:     hostAddr,
 		DBName:   os.Getenv("POSTGRES_DB"),
 		Port:     os.Getenv("POSTGRES_PORT"),
 	}, logger)

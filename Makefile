@@ -1,5 +1,11 @@
-build:
-	docker-compose build
+build-server:
+	docker build .
 
-server: build
-	docker-compose up
+prod: build-server
+	docker-compose -p espresso up
+
+dev:
+	docker-compose -p espresso run --service-ports postgres
+
+go:
+	go run main.go

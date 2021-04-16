@@ -1,7 +1,6 @@
 version: '3.8'
 services:
   server:
-    container_name: server
     image: golang:1-alpine
     build: .
     command: go run main.go
@@ -13,7 +12,6 @@ services:
       - postgres
 
   postgres:
-    container_name: postgres
     image: postgres:13.2
     restart: unless-stopped
     environment:
